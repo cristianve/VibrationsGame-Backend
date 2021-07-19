@@ -1,0 +1,179 @@
+openapi: 3.0.0
+info:
+  title: Vibration Game Backend Rest
+  description: Definition of the REST endpoints for the backend of the Vibration Game.
+  version: 1.0.0
+servers:
+  - url: https://localhost:8090
+    description: Development access.
+  - url: https://backend:8090
+    description: Docker deployed access.
+
+paths:
+  /game/list:
+    get:
+      summary: Obtain a list of created games.
+      tags:
+        - game
+      responses:
+        '200':
+          description: Game list found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameListResponse'
+  /game/players/{gameId}:
+    get:
+      summary: Obtain a list of players that joined the defined game.
+      tags:
+        - game
+      parameters:
+        - in: path
+          name: gameId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Found list of players in a game
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerListResponse'
+  /ranking/game/{gameId}:
+    get:
+      summary: Obtain a list of players in a game ordered by score in descending order.
+      tags:
+        - ranking
+      parameters:
+        - in: path
+          name: gameId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of players ordered by score in descending order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RankingRestResponseBody'
+  /score/user/{userId}:
+    get:
+      summary: Obtain the current score of a user.
+      tags:
+        - score
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Score of the user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserScoreResponseBody'
+components:
+  schemas:
+    GameListResponse:
+      description: List of games.
+      required:
+        - number
+        - gameList
+      properties:
+        number:
+          type: number
+          format: int32
+          description: Number of games returned.
+        gameList:
+          type: array
+          items:
+            $ref: '#/components/schemas/GameDetailsResponse'
+      example:
+        number: 2
+        gameList:
+          [
+            {
+              id: 3fa85f64-5717-4562-b3fc-2c963f66afa6,
+              name: GameName,
+              isPlaying: false
+            },
+            {
+              id: 123e4567-e89b-12d3-a456-556642440000,
+              name: GameName2,
+              isPlaying: true
+            }
+          ]
+    GameDetailsResponse:
+      description: Details of a game.
+      required:
+        - id
+        - name
+        - isPlaying
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Game unique identifier.
+        name:
+          type: string
+          description: Name of the game.
+        isPlaying:
+          type: boolean
+          description: Indicates if the game is currently being played or not.
+    PlayerListResponse:
+      description: List of players.
+      required:
+        - number
+        - playerList
+      properties:
+        number:
+          type: number
+          format: int32
+          description: Number of players returned.
+        playerList:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlayerDetailsResponse'
+      example:
+        number: 1
+        playerList:
+          ["UserName", "UserName2"]
+    PlayerDetailsResponse:
+      description: Details of a player.
+      required:
+        - username
+      properties:
+        username:
+          type: string
+          description: Username of the player.
+    RankingRestResponseBody:
+      description: Map of users and its score.
+      type: object
+      additionalProperties:
+        type: number
+        format: int32
+      example:
+        UserName: 512
+        UserName2: 487
+        UserName3: 354
+    UserScoreResponseBody:
+      description: Score of a player.
+      required:
+        - username
+        - score
+      properties:
+        username:
+          type: string
+          description: Username of the player.
+        score:
+          type: number
+          format: int32
+      example:
+        username: UserName
+        score: 512

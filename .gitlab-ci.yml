@@ -1,0 +1,62 @@
+image: docker:latest
+services:
+  - docker:dind
+
+variables:
+  DOCKER_DRIVER: overlay
+
+stages:
+  - build
+  - coverage
+  - package
+
+gradle-build:
+  stage: build
+  image: adoptopenjdk:11.0.11_9-jdk-hotspot
+  script:
+    - export GRADLE_OPTS="-Dorg.gradle.daemon=false"
+    - ./gradlew clean build
+  artifacts:
+    reports:
+      junit: build/test-results/test/**/TEST-*.xml
+    paths:
+      - build/libs/*.jar
+      - build/reports/jacoco/test/jacocoTestReport.xml
+
+jacoco-coverage:
+  stage: coverage
+  image: registry.gitlab.com/haynes/jacoco2cobertura:1.0.7
+  script:
+    - python /opt/cover2cover.py build/reports/jacoco/test/jacocoTestReport.xml $CI_PROJECT_DIR/src/main/java/ > build/cobertura.xml
+  needs: [ "gradle-build" ]
+  dependencies:
+    - gradle-build
+  artifacts:
+    reports:
+      cobertura: build/cobertura.xml
+
+docker-build-master:
+  stage: package
+  needs: [ "gradle-build" ]
+  dependencies:
+    - gradle-build
+  only:
+    - master
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME .
+    - docker login -u registry-rw -p $REGISTRY_RW_PWD $CI_REGISTRY
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME
+
+docker-build-tag:
+  stage: package
+  needs: [ "gradle-build" ]
+  dependencies:
+    - gradle-build
+  only:
+    - tags
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME .
+    - docker login -u registry-rw -p $REGISTRY_RW_PWD $CI_REGISTRY
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME
+    - docker tag $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME $CI_REGISTRY_IMAGE:latest
+    - docker push $CI_REGISTRY_IMAGE:latest

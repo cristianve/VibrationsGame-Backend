@@ -1,0 +1,378 @@
+asyncapi: 2.0.0
+info:
+  title: Vibration Game Backend Websocket
+  version: 1.1.0
+  description: This service is in charge of handling the game workflow with websockets.
+servers:
+  public:
+    url: backend
+    protocol: wss
+    description: |
+      Public server available without authorization that will handle the game workflow.
+channels:
+  /vibration/websocket:
+    publish:
+      description: Send messages to the API
+      operationId: processReceivedMessage
+      message:
+        oneOf:
+          - $ref: '#/components/messages/BasicRequestBody'
+          - $ref: '#/components/messages/AssignUserToGameRequestBody'
+          - $ref: '#/components/messages/CoordinatesRequestBody'
+          - $ref: '#/components/messages/CreateGameRequestBody'
+
+    subscribe:
+      description: Messages that you receive from the API
+      operationId: sendMessage
+      message:
+        oneOf:
+          - $ref: '#/components/messages/ErrorResponseBody'
+          - $ref: '#/components/messages/BasicResponseBody'
+          - $ref: '#/components/messages/CreateGameResponseBody'
+          - $ref: '#/components/messages/JoinedResponseBody'
+          - $ref: '#/components/messages/StartGameResponseBody'
+          - $ref: '#/components/messages/ReviewGameResponseBody'
+components:
+  messages:
+    BasicRequestBody:
+      description: Basic request sent to the backend
+      payload:
+        type: object
+        required:
+          - action
+        properties:
+          action:
+            type: string
+            description: Action to execute
+            enum:
+              - IDLE
+              - CREATE
+              - DELETE
+              - JOIN
+              - START
+              - DATA
+              - REVIEW
+              - EXIT
+      x-websocketsession:
+        - $ref: '#/components/schemas/WebSocketSession'
+      examples:
+        - payload:
+            action: START
+        - payload:
+            action: DELETE
+        - payload:
+            action: EXIT
+        - payload:
+            action: REVIEW
+
+    CreateGameRequestBody:
+      description: Create a game with the following data.
+      payload:
+        allOf:
+          - $ref: '#/components/messages/BasicRequestBody'
+          - type: object
+            required:
+              - name
+            properties:
+              name:
+                type: string
+                description: Name of the game to be created
+              maxPlayers:
+                type: integer
+                format: int32
+                description: Maximum number of players allowed in the game.
+                default: 10
+              victoryConditions:
+                type: string
+                description: Victory condition of the game
+                enum:
+                  - POINTS
+                  - TIME
+                default: TIME
+              condition:
+                type: integer
+                format: int32
+                description: Number of points or time in seconds necessary to clear the game.
+                default: 60
+      examples:
+        - payload:
+            action: CREATE
+            name: GameName
+        - payload:
+            action: CREATE
+            name: GameName
+            maxPlayers: 25
+            victoryConditions: TIME
+            condition: 120
+
+    AssignUserToGameRequestBody:
+      description: Assign a user to a game. User information is stored in the WebSocketSession.
+      payload:
+        allOf:
+          - $ref: '#/components/messages/BasicRequestBody'
+          - type: object
+            required:
+              - gameId
+            properties:
+              gameId:
+                type: string
+                description: UUID of the game that the user will join.
+      examples:
+        - payload:
+            action: JOIN
+            gameId: 123e4567-e89b-12d3-a456-556642440000
+
+    CoordinatesRequestBody:
+      description: Coordinates captured by the mobile device.
+      payload:
+        allOf:
+          - $ref: '#/components/messages/BasicRequestBody'
+          - type: object
+            required:
+              - time
+              - xCoordinates
+              - yCoordinates
+              - zCoordinates
+            properties:
+              time:
+                type: number
+                format: long
+                description: Timetamp of the captured corrdinates.
+              xCoordinates:
+                type: number
+                format: float
+                description: x position of the coordinates.
+              yCoordinates:
+                type: number
+                format: float
+                description: y position of the coordinates.
+              zCoordinates:
+                type: number
+                format: float
+                description: z position of the coordinates.
+      examples:
+        - payload:
+            action: DATA
+            time: 1313045029
+            xCoordinates: 5.24
+            yCoordinates: 7.82
+            zCoordinates: 2.37
+
+    ErrorResponseBody:
+      description: Response sent when an error occurred.
+      payload:
+        type: object
+        required:
+          - code
+          - message
+        properties:
+          code:
+            type: integer
+            format: int32
+            description: Return code. Will be different than 0.
+          message:
+            type: string
+            description: Return message indicating the failed operation.
+      x-websocketsession:
+        - $ref: '#/components/schemas/WebSocketSession'
+      examples:
+        - payload:
+            code: 1
+            message: INVALID STATE
+        - payload:
+            code: 1
+            message: GAME NOT CREATED
+        - payload:
+            code: 1
+            message: USER NOT ADDED TO GAME
+        - payload:
+            code: 1
+            message: USER NOT EXITED FROM GAME
+        - payload:
+            code: 1
+            message: GAME NOT STARTED
+        - payload:
+            code: 1
+            message: POINTS NOT UPDATED
+        - payload:
+            code: 1
+            message: USER NOT ADMIN
+        - payload:
+            code: 1
+            message: INVALID ACTION
+
+    BasicResponseBody:
+      description: Basic response sent.
+      payload:
+        type: object
+        required:
+          - code
+          - message
+          - state
+          - action
+        properties:
+          code:
+            type: integer
+            format: int32
+            description: Return code.
+          message:
+            type: string
+            description: Return message
+          state:
+            type: string
+            description: State after executing the operation.
+            enum:
+              - CONNECTED
+              - CREATED
+              - JOINED
+              - WAITING
+              - PLAYING
+              - RANKING
+              - END
+          action:
+            type: string
+            description: Response action.
+            enum:
+              - IDLE # Default response action
+              - REVIEW # When figure reviewed
+              - EXIT # When user exited the game or the admin deleted the game
+      x-websocketsession:
+        - $ref: '#/components/schemas/WebSocketSession'
+      examples:
+        - payload:
+            code: 0
+            message: GAME STARTING
+            state: WAITING
+            action: IDLE
+        - payload:
+            code: 0
+            message: GAME DELETED
+            state: CONNECTED
+            action: EXIT
+        - payload:
+            code: 0
+            message: USER EXITED FROM GAME
+            state: CONNECTED
+            action: EXIT
+        - payload:
+            code: 0
+            message: GAME ENDED
+            state: END
+            action: IDLE
+
+    CreateGameResponseBody:
+      description: Response sent after creating a new game successfully.
+      payload:
+        allOf:
+          - $ref: '#/components/messages/BasicResponseBody'
+          - type: object
+            required:
+              - uuid
+            properties:
+              uuid:
+                type: string
+                description: UUID of the created game.
+      examples:
+        - payload:
+            code: 0
+            message: GAME CREATED
+            state: CREATED
+            action: IDLE
+            uuid: 123e4567-e89b-12d3-a456-556642440000
+
+    JoinedResponseBody:
+      description: Response sent when a user joined a game successfully.
+      payload:
+        allOf:
+          - $ref: '#/components/messages/BasicResponseBody'
+          - type: object
+            required:
+              - gameUuid
+            properties:
+              gameUuid:
+                type: string
+                description: UUID of the game that the user joined.
+      examples:
+        - payload:
+            code: 0
+            message: USER ADDED TO GAME
+            state: JOINED
+            action: IDLE
+            gameUuid: 123e4567-e89b-12d3-a456-556642440000
+
+    StartGameResponseBody:
+      description: Response sent to indicate that the game started.
+      payload:
+        allOf:
+          - $ref: '#/components/messages/BasicResponseBody'
+          - type: object
+            properties:
+              figure:
+                type: string
+                description: Name of the figure to be shown at the start of the game.
+                enum:
+                  - MOVE_RIGHT
+                  - MOVE_LEFT
+                  - MOVE_UP
+                  - MOVE_DOWN
+                  - CIRCLE
+      examples:
+        - payload:
+            code: 0
+            message: GAME START
+            state: PLAYING
+            action: IDLE
+            figure: MOVE_UP
+        - payload:
+            code: 0
+            message: GAME START
+            state: RANKING
+            action: IDLE
+
+    ReviewGameResponseBody:
+      description: Response sent after reviewing if a set of coordinates corresponds to the defined figure.
+      payload:
+        allOf:
+          - $ref: '#/components/messages/BasicResponseBody'
+          - type: object
+            required:
+              - correct
+            properties:
+              correct:
+                type: boolean
+                description: Shows if the review of the previous figure was correct or not.
+              figure:
+                type: string
+                description: Name of the new figure to be shown after correctly doing the previous figure.
+                enum:
+                  - MOVE_RIGHT
+                  - MOVE_LEFT
+                  - MOVE_UP
+                  - MOVE_DOWN
+                  - CIRCLE
+              score:
+                type: number
+                format: int32
+                description: New score of the user after correctly doing the previous figure.
+      examples:
+        - payload:
+            code: 0
+            message: FIGURE REVIEWED
+            state: PLAYING
+            action: REVIEW
+            correct: true
+            figure: MOVE_RIGHT
+            score: 389
+        - payload:
+            code: 0
+            message: FIGURE REVIEWED
+            state: PLAYING
+            action: REVIEW
+            correct: false
+
+  schemas:
+    WebSocketSession:
+      type: object
+      properties:
+        USERNAME:
+          type: string
